@@ -1,78 +1,54 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Text.Json;
-using System.Threading.Tasks;
 
+namespace SimpleWebAppReact.Services;
+
+/// <summary>
+/// Fetches building outlines from the OpenStreetMap Overpass API
+/// </summary>
 public class BuildingOutlineService
 {
+    private const string OverpassUrl = "https://overpass-api.de/api/interpreter";
+
     private readonly HttpClient _httpClient;
 
     public BuildingOutlineService(HttpClient httpClient)
     {
         _httpClient = httpClient;
+        // Overpass rejects requests without a User-Agent (406 Not Acceptable)
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BoilerRooms/1.0");
     }
 
-    // Method to get building outlines with multiple coordinates for diverse polygon shapes
+    /// <summary>
+    /// closed polygons of every building within radius (degrees) of a point
+    /// </summary>
     public async Task<List<List<(double Lat, double Lon)>>> GetBuildingOutline(double latitude, double longitude, double radius)
     {
-        double minLat = latitude - radius;
-        double minLon = longitude - radius;
-        double maxLat = latitude + radius;
-        double maxLon = longitude + radius;
-        
-        // Overpass API endpoint
-        string url = "http://overpass-api.de/api/interpreter";
+        var query = FormattableString.Invariant(
+            $"[out:json];way[\"building\"]({latitude - radius},{longitude - radius},{latitude + radius},{longitude + radius});out geom;");
 
-        // Create Overpass QL query for buildings within the bounding box
-        string query = $@"
-            [out:json];
-            (
-              way[""building""]({minLat}, {minLon}, {maxLat}, {maxLon});
-            );
-            out geom;
-        ";
-
-        // Send the query as a POST request
-        var response = await _httpClient.PostAsync(url, new StringContent(query));
+        using var response = await _httpClient.PostAsync(OverpassUrl, new StringContent(query));
         response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadAsStringAsync();
+        using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
 
-        // Parse JSON response to extract coordinates for polygons
-        var buildingPolygons = ParseBuildingCoordinates(json);
-
-        return buildingPolygons;
-    }
-
-    // Helper method to parse JSON and generate list of coordinates for diverse polygon shapes
-    private List<List<(double Lat, double Lon)>> ParseBuildingCoordinates(string json)
-    {
-        var data = JsonDocument.Parse(json);
         var buildings = new List<List<(double Lat, double Lon)>>();
-
-        // Loop through each element to find building polygons with diverse shapes
-        foreach (var element in data.RootElement.GetProperty("elements").EnumerateArray())
+        foreach (var element in json.RootElement.GetProperty("elements").EnumerateArray())
         {
-            if (element.GetProperty("type").GetString() == "way" && element.TryGetProperty("geometry", out var geometry))
+            if (element.GetProperty("type").GetString() != "way" || !element.TryGetProperty("geometry", out var geometry))
             {
-                var coordinates = new List<(double Lat, double Lon)>();
-
-                // Collect each point's latitude and longitude for this building polygon
-                foreach (var point in geometry.EnumerateArray())
-                {
-                    double lat = point.GetProperty("lat").GetDouble();
-                    double lon = point.GetProperty("lon").GetDouble();
-                    coordinates.Add((lat, lon));
-                }
-
-                // Ensure the polygon is closed by adding the first coordinate at the end if necessary
-                if (coordinates.Count > 0 && coordinates[0] != coordinates[^1])
-                {
-                    coordinates.Add(coordinates[0]);
-                }
-
-                buildings.Add(coordinates);
+                continue;
             }
+
+            var coordinates = geometry.EnumerateArray()
+                .Select(point => (point.GetProperty("lat").GetDouble(), point.GetProperty("lon").GetDouble()))
+                .ToList();
+
+            // Close the polygon if the last point does not repeat the first
+            if (coordinates.Count > 0 && coordinates[0] != coordinates[^1])
+            {
+                coordinates.Add(coordinates[0]);
+            }
+
+            buildings.Add(coordinates);
         }
 
         return buildings;

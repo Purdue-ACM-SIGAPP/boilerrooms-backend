@@ -10,7 +10,7 @@ public class DinningCourt : Building
     
     // Food options always available at the court (e.g., salad bar, la fonda, deli bar)
     [BsonElement("stableOptions"), BsonRepresentation(BsonType.Array)]
-    public List<string> StableOptions { get; set; }
+    public List<string> StableOptions { get; set; } = new();
 
     
     // Whether or not meal swipes are accepted

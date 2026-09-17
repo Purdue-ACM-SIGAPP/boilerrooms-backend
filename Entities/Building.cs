@@ -4,11 +4,10 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 /// <summary>
-/// Class structure matches 1-1 with Building Table in database
+/// Class structure matches 1-1 with Building Table in database.
+/// Extra elements are ignored so Housing and DinningCourt documents still load as Building.
 /// </summary>
-
-//[BsonDiscriminator(RootClass = true)]
-// [BsonKnownTypes(typeof(Housing), typeof(DinningCourt))]
+[BsonIgnoreExtraElements]
 public class Building
 {
     [BsonId]
@@ -33,7 +32,7 @@ public class Building
     [BsonElement("image"), BsonRepresentation(BsonType.String)]
     public string? Image { get; set; }
 
-    //D - dining court; H - housing
+    // "Housing", "DinningCourt", or another category such as "Academic"
     [BsonElement("buildingType"), BsonRepresentation(BsonType.String)]
     public string? BuildingType { get; set; }
 

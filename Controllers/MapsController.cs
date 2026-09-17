@@ -1,215 +1,109 @@
-namespace SimpleWebAppReact.Controllers;
 using Microsoft.AspNetCore.Mvc;
-using SimpleWebAppReact.Services;
-using SimpleWebAppReact.Entities;
-using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
+using SimpleWebAppReact.Entities;
+using SimpleWebAppReact.Services;
 
+namespace SimpleWebAppReact.Controllers;
+
+/// <summary>
+/// Distance and geocoding endpoints backed by Google Maps
+/// </summary>
 [ApiController]
 [Route("api/maps")]
 public class MapsController : ControllerBase
 {
-    private readonly ILogger<MapsController> _logger;
-    private readonly IMongoCollection<Building>? _buildings;
-    private readonly HttpClient _httpClient;
-    private readonly string _googleApiKey = "AIzaSyCzKs4kUhXuPhBxYB2BU0ODXXIUBJnenhA";
+    private readonly IMongoCollection<Building> _buildings;
+    private readonly GoogleMapsService _mapsService;
 
-    public MapsController(ILogger<MapsController> logger, MongoDbService mongoDbService, HttpClient httpClient)
+    public MapsController(MongoDbService mongoDbService, GoogleMapsService mapsService)
     {
-        _logger = logger;
-        _buildings = mongoDbService.Database?.GetCollection<Building>("building");
-        _httpClient = httpClient;
+        _buildings = mongoDbService.Database.GetCollection<Building>("building");
+        _mapsService = mapsService;
     }
 
+    /// <summary>
+    /// gets travel distance and duration from a coordinate to a building
+    /// </summary>
     [HttpGet("user_distance")]
     public async Task<IActionResult> GetUserDistance(string buildingId, double latitude, double longitude)
     {
-        if (_buildings == null)
-        {
-            return StatusCode(500, new { message = "Building collection not initialized." });
-        }
-        
-        // Fetch destination building from database
-        var destBuilding = await _buildings.Find(b => b.Id == buildingId).FirstOrDefaultAsync();
-        if (destBuilding == null)
+        var building = await FindAsync(buildingId);
+        if (building is null)
         {
             return NotFound(new { message = "Building not found." });
         }
-        
-        // Extract address
-        string address = destBuilding.Address ?? string.Empty;
-        if (string.IsNullOrEmpty(address))
+
+        if (string.IsNullOrEmpty(building.Address))
         {
             return BadRequest(new { message = "Address is not set for building" });
         }
-        
-        // Prepare request url
-        string requestCoords = $"{latitude},{longitude}";
-        string url = $"https://maps.googleapis.com/maps/api/distancematrix/json?origins={requestCoords}&destinations={address}&units=imperial&key={_googleApiKey}";
 
-        try
-        {
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-            var jsonData = JObject.Parse(jsonResponse);
-
-            // Parse distance and duration from the response
-            var distance = jsonData["rows"]?[0]?["elements"]?[0]?["distance"]?["text"]?.ToString();
-            var duration = jsonData["rows"]?[0]?["elements"]?[0]?["duration"]?["text"]?.ToString();
-
-            if (distance == null || duration == null)
-            {
-                return BadRequest(new { message = "Could not calculate distance or duration." });
-            }
-
-            // Return the distance and duration as the response
-            return Ok(new
-            {
-                distance,
-                duration
-            });
-        }
-        catch (HttpRequestException e)
-        {
-            _logger.LogError(e, "Error while calling Google Maps API");
-            return StatusCode(500, e.Message);
-        }
+        var result = await _mapsService.GetDistanceAsync(FormattableString.Invariant($"{latitude},{longitude}"), building.Address);
+        return result is null
+            ? UnprocessableEntity(new { message = "Could not calculate distance or duration." })
+            : Ok(new { distance = result.Value.Distance, duration = result.Value.Duration });
     }
-    
+
+    /// <summary>
+    /// gets travel distance and duration between two buildings
+    /// </summary>
     [HttpGet("distance")]
     public async Task<IActionResult> GetDistance(string buildingId1, string buildingId2)
     {
-        if (_buildings == null)
-        {
-            return StatusCode(500, new { message = "Building collection not initialized." });
-        }
-
-        // Fetch the two buildings from the database using their IDs
-        var building1 = await _buildings.Find(b => b.Id == buildingId1).FirstOrDefaultAsync();
-        var building2 = await _buildings.Find(b => b.Id == buildingId2).FirstOrDefaultAsync();
-
-        if (building1 == null || building2 == null)
+        var building1 = await FindAsync(buildingId1);
+        var building2 = await FindAsync(buildingId2);
+        if (building1 is null || building2 is null)
         {
             return NotFound(new { message = "One or both buildings not found." });
         }
 
-        // Extract addresses
-        string address1 = building1.Address ?? string.Empty;
-        string address2 = building2.Address ?? string.Empty;
-
-        if (string.IsNullOrEmpty(address1) || string.IsNullOrEmpty(address2))
+        if (string.IsNullOrEmpty(building1.Address) || string.IsNullOrEmpty(building2.Address))
         {
             return BadRequest(new { message = "Addresses are missing for one or both buildings." });
         }
 
-        // Prepare the Distance Matrix API request
-        string url = $"https://maps.googleapis.com/maps/api/distancematrix/json?origins={address1}&destinations={address2}&units=imperial&key={_googleApiKey}";
-
-        try
-        {
-            // Send the request to Google Maps API
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-            var jsonData = JObject.Parse(jsonResponse);
-
-            // Parse distance and duration from the response
-            var distance = jsonData["rows"]?[0]?["elements"]?[0]?["distance"]?["text"]?.ToString();
-            var duration = jsonData["rows"]?[0]?["elements"]?[0]?["duration"]?["text"]?.ToString();
-
-            if (distance == null || duration == null)
-            {
-                return BadRequest(new { message = "Could not calculate distance or duration." });
-            }
-
-            // Return the distance and duration as the response
-            return Ok(new
+        var result = await _mapsService.GetDistanceAsync(building1.Address, building2.Address);
+        return result is null
+            ? UnprocessableEntity(new { message = "Could not calculate distance or duration." })
+            : Ok(new
             {
                 building1 = building1.Name,
                 building2 = building2.Name,
-                distance,
-                duration
+                distance = result.Value.Distance,
+                duration = result.Value.Duration
             });
-        }
-        catch (HttpRequestException e)
-        {
-            _logger.LogError(e, "Error while calling Google Maps API");
-            return StatusCode(500, new { message = "Error while calling Google Maps API." });
-        }
     }
+
+    /// <summary>
+    /// sets a building's coordinates by geocoding its address
+    /// </summary>
     [HttpPost("set-coordinates")]
     public async Task<IActionResult> SetCoordinates(string buildingId)
     {
-        if (_buildings == null)
-        {
-            return StatusCode(500, new { message = "Building collection not initialized." });
-        }
-
-        // Fetch the building from the database using its ID
-        var building = await _buildings.Find(b => b.Id == buildingId).FirstOrDefaultAsync();
-
-        if (building == null)
+        var building = await FindAsync(buildingId);
+        if (building is null)
         {
             return NotFound(new { message = "Building not found." });
         }
 
-        // Ensure the address is not null or empty
         if (string.IsNullOrEmpty(building.Address))
         {
             return BadRequest(new { message = "Address is missing for the building." });
         }
 
-        // Prepare the Geocoding API request
-        string url = $"https://maps.googleapis.com/maps/api/geocode/json?address={building.Address}&key={_googleApiKey}";
-
-        try
+        var location = await _mapsService.GeocodeAsync(building.Address);
+        if (location is null)
         {
-            // Send the request to Google Maps Geocoding API
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-            var jsonData = JObject.Parse(jsonResponse);
-
-            // Parse coordinates from the response
-            var location = jsonData["results"]?[0]?["geometry"]?["location"];
-            var latitude = location?["lat"]?.ToObject<double>();
-            var longitude = location?["lng"]?.ToObject<double>();
-
-            if (latitude == null || longitude == null)
-            {
-                return BadRequest(new { message = "Could not get coordinates from the address." });
-            }
-
-            // Set the coordinates in the building entity
-            building.Latitude = latitude.Value;
-            building.Longitude = longitude.Value;
-
-            // Update the building in the database
-            var updateResult = await _buildings.ReplaceOneAsync(b => b.Id == buildingId, building);
-
-            if (!updateResult.IsAcknowledged)
-            {
-                return StatusCode(500, new { message = "Failed to update building coordinates in the database." });
-            }
-
-            return Ok(new
-            {
-                message = "Coordinates updated successfully.",
-                buildingId,
-                latitude,
-                longitude
-            });
+            return UnprocessableEntity(new { message = "Could not get coordinates from the address." });
         }
-        catch (HttpRequestException e)
-        {
-            _logger.LogError(e, "Error while calling Google Maps API");
-            return StatusCode(500, new { message = "Error while calling Google Maps API." });
-        }
+
+        var (latitude, longitude) = location.Value;
+        var update = Builders<Building>.Update.Set(b => b.Latitude, latitude).Set(b => b.Longitude, longitude);
+        await _buildings.UpdateOneAsync(b => b.Id == buildingId, update);
+
+        return Ok(new { message = "Coordinates updated successfully.", buildingId, latitude, longitude });
     }
 
+    private async Task<Building?> FindAsync(string? id) =>
+        MongoDbService.IsValidId(id) ? await _buildings.Find(b => b.Id == id).FirstOrDefaultAsync() : null;
 }
-
