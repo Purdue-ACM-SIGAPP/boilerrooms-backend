@@ -1,0 +1,16 @@
+# Local MongoDB for development: docker compose up -d
+# Scripts in ./seed run once, when the data volume is first created.
+services:
+  mongo:
+    image: mongo:7
+    container_name: boilerrooms-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: test
+    volumes:
+      - mongo-data:/data/db
+      - ./seed:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  mongo-data:

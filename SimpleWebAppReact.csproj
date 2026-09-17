@@ -8,34 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Auth0.AspNetCore.Authentication" Version="1.4.1" />
     <PackageReference Include="dotenv.net" Version="3.2.1" />
-    <PackageReference Include="Fiambre.Identity.Mongo" Version="8.3.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="3.0.0" />
     <PackageReference Include="FuzzySharp" Version="2.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="6.0.33" />
     <PackageReference Include="MongoDB.Driver" Version="2.28.0" />
-    <PackageReference Include="Moq" Version="4.20.70" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="RestSharp" Version="112.1.1-alpha.0.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
-    <PackageReference Include="Twilio" Version="7.5.0" />
-    <PackageReference Include="xunit" Version="2.9.0" />
-    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="7.0.1" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="wwwroot\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <_ContentIncludedByDefault Remove="ClientApp\app.json" />
-    <_ContentIncludedByDefault Remove="ClientApp\package-lock.json" />
-    <_ContentIncludedByDefault Remove="ClientApp\package.json" />
-    <_ContentIncludedByDefault Remove="ClientApp\tsconfig.json" />
   </ItemGroup>
 
 </Project>
