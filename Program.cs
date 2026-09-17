@@ -1,5 +1,4 @@
 using dotenv.net;
-using Microsoft.OpenApi.Models;
 using SimpleWebAppReact.Services;
 
 // Load .env into environment variables before configuration is built,
@@ -10,10 +9,12 @@ const string CorsPolicy = "AllowAll";
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container.
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Boiler Rooms API", Version = "v1" }));
 
 // The Expo web and native clients call the API from other origins
 builder.Services.AddCors(options =>
@@ -29,10 +30,15 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
     app.UseHttpsRedirection();
+
+    // Set up Swagger UI to see documentation of all routes and controllers in this app
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => {
+        // Point Swagger to the OpenAPI spec
+        options.SwaggerEndpoint("/openapi/v1.json", "My API v1");
+    });
 }
 
-app.UseSwagger();
-app.UseSwaggerUI();
 app.UseRouting();
 app.UseCors(CorsPolicy);
 app.MapControllers();

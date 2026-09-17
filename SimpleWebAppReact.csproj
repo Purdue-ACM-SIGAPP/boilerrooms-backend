@@ -1,18 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>23c42f04-bdce-493c-98a5-fcbdb4ccebd4</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="dotenv.net" Version="3.2.1" />
+    <PackageReference Include="dotenv.net" Version="4.2.0" />
     <PackageReference Include="FuzzySharp" Version="2.0.2" />
-    <PackageReference Include="MongoDB.Driver" Version="2.28.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="MongoDB.Driver" Version="3.12.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
   </ItemGroup>
 
 </Project>
