@@ -23,6 +23,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<MongoDbService>();
 builder.Services.AddHttpClient<BuildingOutlineService>();
 builder.Services.AddHttpClient<GoogleMapsService>();
+builder.Services.AddSingleton<PasswordHasherService>();
 
 var app = builder.Build();
 
