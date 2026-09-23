@@ -6,57 +6,93 @@ using SimpleWebAppReact.Services;
 namespace SimpleWebAppReact.Controllers;
 
 /// <summary>
-/// Defines endpoints for operations relating the RoommatePost table
+/// Defines endpoints for operations relating the RoommateBio table (issue #87)
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class RoommateController : ControllerBase
 {
-    private readonly IMongoCollection<RoommatePost> _roommatePosts;
+    private readonly IMongoCollection<RoommateBio> _bios;
 
     public RoommateController(MongoDbService mongoDbService)
     {
-        _roommatePosts = mongoDbService.Database.GetCollection<RoommatePost>("roommatePost");
+        _bios = mongoDbService.Database.GetCollection<RoommateBio>("roommateBio");
     }
 
     /// <summary>
-    /// gets roommate posts, optionally filtered by the user who made them
+    /// gets roommate bios, so users can browse others looking for a roommate.
+    /// optionally filtered to one user's bio
     /// </summary>
     [HttpGet]
-    public async Task<IEnumerable<RoommatePost>> Get([FromQuery] string? userId = null)
+    public async Task<IEnumerable<RoommateBio>> Get([FromQuery] string? userId = null)
     {
         var filter = string.IsNullOrEmpty(userId)
-            ? Builders<RoommatePost>.Filter.Empty
-            : Builders<RoommatePost>.Filter.Eq(p => p.UserId, userId);
+            ? Builders<RoommateBio>.Filter.Empty
+            : Builders<RoommateBio>.Filter.Eq(b => b.UserId, userId);
 
-        return await _roommatePosts.Find(filter).ToListAsync();
+        return await _bios.Find(filter).ToListAsync();
     }
 
     /// <summary>
-    /// gets a specific roommate post by id
+    /// gets a specific roommate bio by id
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<RoommatePost>> GetById(string id)
+    public async Task<ActionResult<RoommateBio>> GetById(string id)
     {
-        var post = MongoDbService.IsValidId(id)
-            ? await _roommatePosts.Find(p => p.Id == id).FirstOrDefaultAsync()
+        var bio = MongoDbService.IsValidId(id)
+            ? await _bios.Find(b => b.Id == id).FirstOrDefaultAsync()
             : null;
-        return post is null ? NotFound() : Ok(post);
+        return bio is null ? NotFound() : Ok(bio);
     }
 
     /// <summary>
-    /// creates a roommate post
+    /// creates a roommate bio for a user
     /// </summary>
     [HttpPost]
-    public async Task<ActionResult> Post(RoommatePost post)
+    public async Task<ActionResult> Post(RoommateBio bio)
     {
-        if (string.IsNullOrWhiteSpace(post.UserId))
+        if (string.IsNullOrWhiteSpace(bio.UserId))
         {
             return BadRequest("A userId is required.");
         }
 
-        post.Id = null;
-        await _roommatePosts.InsertOneAsync(post);
-        return CreatedAtAction(nameof(GetById), new { id = post.Id }, post);
+        if (await _bios.Find(b => b.UserId == bio.UserId).AnyAsync())
+        {
+            return Conflict("This user already has a roommate bio.");
+        }
+
+        bio.Id = null;
+        await _bios.InsertOneAsync(bio);
+        return CreatedAtAction(nameof(GetById), new { id = bio.Id }, bio);
+    }
+
+    /// <summary>
+    /// updates a roommate bio
+    /// </summary>
+    [HttpPut]
+    public async Task<ActionResult> Update(RoommateBio bio)
+    {
+        if (!MongoDbService.IsValidId(bio.Id))
+        {
+            return NotFound();
+        }
+
+        var result = await _bios.ReplaceOneAsync(b => b.Id == bio.Id, bio);
+        return result.MatchedCount > 0 ? Ok() : NotFound();
+    }
+
+    /// <summary>
+    /// deletes a roommate bio
+    /// </summary>
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> Delete(string id)
+    {
+        if (!MongoDbService.IsValidId(id))
+        {
+            return NotFound();
+        }
+
+        var result = await _bios.DeleteOneAsync(b => b.Id == id);
+        return result.DeletedCount > 0 ? Ok() : NotFound();
     }
 }
