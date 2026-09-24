@@ -13,10 +13,12 @@ namespace SimpleWebAppReact.Controllers;
 public class RoommateController : ControllerBase
 {
     private readonly IMongoCollection<RoommateBio> _bios;
+    private readonly IMongoCollection<User> _users;
 
     public RoommateController(MongoDbService mongoDbService)
     {
         _bios = mongoDbService.Database.GetCollection<RoommateBio>("roommateBio");
+        _users = mongoDbService.Database.GetCollection<User>("user");
     }
 
     /// <summary>
@@ -51,9 +53,14 @@ public class RoommateController : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Post(RoommateBio bio)
     {
-        if (string.IsNullOrWhiteSpace(bio.UserId))
+        if (!MongoDbService.IsValidId(bio.UserId))
         {
-            return BadRequest("A userId is required.");
+            return BadRequest("A valid userId is required.");
+        }
+
+        if (!await _users.Find(u => u.Id == bio.UserId).AnyAsync())
+        {
+            return BadRequest("No user exists with that userId.");
         }
 
         if (await _bios.Find(b => b.UserId == bio.UserId).AnyAsync())
@@ -76,6 +83,15 @@ public class RoommateController : ControllerBase
         {
             return NotFound();
         }
+
+        var existing = await _bios.Find(b => b.Id == bio.Id).FirstOrDefaultAsync();
+        if (existing is null)
+        {
+            return NotFound();
+        }
+
+        // createdAt is set once at creation and can't be changed by the client
+        bio.CreatedAt = existing.CreatedAt;
 
         var result = await _bios.ReplaceOneAsync(b => b.Id == bio.Id, bio);
         return result.MatchedCount > 0 ? Ok() : NotFound();
